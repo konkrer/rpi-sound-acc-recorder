@@ -1,0 +1,8 @@
+sd examples/
+microphone_data/
+scratch/
+data/
+
+__queuestorage__
+__py*
+*.wav
