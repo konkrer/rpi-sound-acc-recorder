@@ -1,7 +1,12 @@
 #!/bin/bash
 
-bash -c "killall -9 /home/rich/.local/share/virtualenvs/data_grabber-v78n5DF2/bin/python /home/rich/dev/data_grabber/src/StartButtonListener.py"
+bash -c "kill -9 `ps -h | grep StartButtonListener.py -m 1 | awk '{print $1;}'`"
 
-/home/rich/dev/data_grabber/bin/ledsOff.sh
+event_results=`ps -h |grep EventRecorder.py | wc -l`
 
+if [ $event_results -eq 2 ]
+then
+  bash -c "kill -9 `ps -h | grep EventRecorder.py -m 1 | awk '{print $1;}'`"
+fi
 
+~/dev/rpi-sound-acc-recorder/bin/ledsOff.sh

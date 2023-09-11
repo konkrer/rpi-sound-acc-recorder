@@ -1,10 +1,12 @@
 import shutil
 import subprocess
 import sys
+import pathlib
 from pynput.keyboard import Listener
 from lib.utils import led_change, beep_buzzer, buzz_buzzer
 
 columns, _ = shutil.get_terminal_size()
+home_dir = str(pathlib.Path.home())
 
 HOT_KEY_REBOOT = 'f1'
 HOT_KEY_KILL = 'f2'
@@ -31,15 +33,19 @@ try:
     if PRESSED_HOT_KEY == HOT_KEY_REBOOT:
         buzz_buzzer(on=False)
         beep_buzzer()
-        subprocess.run(['/home/rich/dev/data_grabber/bin/reboot_S_B_L.sh'])
+        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/reboot_S_B_L.sh'])
     elif PRESSED_HOT_KEY == HOT_KEY_KILL:
         buzz_buzzer(on=False)
         beep_buzzer()
-        subprocess.run(['/home/rich/dev/data_grabber/bin/kill_S_B_L.sh'])
+        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
 
 
-except (KeyboardInterrupt, Exception):
+except (KeyboardInterrupt):
+
     print('Exiting Reboot Button Listener')
+finally:
     led_change(False, 0)
     buzz_buzzer(on=False)
     sys.exit(0)
+
+

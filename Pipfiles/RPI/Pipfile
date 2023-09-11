@@ -4,14 +4,15 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-sounddevice = "*"
-soundfile = "*"
 numpy = "*"
+soundfile = "*"
+sounddevice = "*"
+pynput = "*"
 sparkfun-qwiic-kx13x = "*"
 "rpi.gpio" = "*"
-pynput = "*"
 
 [dev-packages]
 
 [requires]
 python_version = "3.9"
+python_full_version = "3.9.2"
