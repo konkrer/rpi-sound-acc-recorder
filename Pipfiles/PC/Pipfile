@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+soundfile = "*"
+sounddevice = "*"
+sparkfun-qwiic-kx13x = "*"
+numpy = "*"
+pynput = "*"
+matplotlib = "*"
+scipy = "*"
+
+[dev-packages]
+flake8 = "*"
+autopep8 = "*"
+ipython = "*"
+
+[requires]
+python_version = "3.9"
+python_full_version = "3.9.2"
