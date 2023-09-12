@@ -1,6 +1,12 @@
 #!/bin/bash
 
-bash -c "kill -9 `ps -h | grep StartButtonListener.py -m 1 | awk '{print $1;}'`"
+s_b_l_results=`ps -h | grep StartButtonListener.py | wc -l`
+
+if [ $s_b_l_results -eq 2 ]
+then
+  bash -c "kill -9 `ps -h | grep StartButtonListener.py -m 1 | awk '{print $1;}'`"
+fi
+
 
 event_results=`ps -h |grep EventRecorder.py | wc -l`
 

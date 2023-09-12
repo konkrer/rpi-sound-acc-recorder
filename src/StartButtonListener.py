@@ -12,8 +12,9 @@ import subprocess
 import sys
 from pynput.keyboard import Listener
 from lib.utils import led_change, beep_buzzer
+import pathlib
 
-
+home_dir = str(pathlib.Path.home())
 HOT_KEY_LAUNCH = 'f4'
 
 
@@ -48,7 +49,8 @@ if __name__ == '__main__':
         beep_buzzer(twice=True)
         # subprocess call allows EventRecorder to run properly on Raspberry Pi
         # from this button listening startup script. Avoids input overflows.
-        subprocess.run(['pipenv', 'run', 'python', 'src/EventRecorder.py'])
+        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'])
+
     except (KeyboardInterrupt):
         print('\nExiting Start Button Listener\n')
         led_change(False, 0)
