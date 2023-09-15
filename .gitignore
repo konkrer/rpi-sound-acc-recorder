@@ -1,6 +1,7 @@
 Pipfile
 Pipfile.lock
 !Pipfiles/RPI/Pipfile*
+!Pipfiles/PC/Pipfile*
 
 sd examples/
 microphone_data/
@@ -11,3 +12,4 @@ data/
 __queuestorage__
 __py*
 *.wav
+.vscode
