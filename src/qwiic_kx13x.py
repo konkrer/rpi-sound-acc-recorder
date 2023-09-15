@@ -43,6 +43,7 @@ New to qwiic? Take a look at the entire
 # from __future__ import print_function
 import qwiic_i2c
 from collections import namedtuple
+from kx_initializations import Kx13xInitializations
 
 # Wake up from sleep G threshold if one is not explicitly passed in class
 # initialization.
@@ -275,7 +276,8 @@ class QwiicKX13XCore(object):
                 'BUFFER_SETTINGS_1', 'WAKE_UP_TRIGGER', 'ADP', 'ADP_OFF']
 
     def initialize(self, settings='DEFAULT_SETTINGS',
-                   wake_up_threshold: None or float or int = None
+                   wake_up_threshold: None or float or int = None,
+                   g_range: None or int = None,
                    ) -> None:
         """
             Initialize configures the accelerometer's registers into a number
@@ -288,221 +290,32 @@ class QwiicKX13XCore(object):
 
         # DEFAULT_SETTINGS (asynchronous)
         if settings == choices[0]:
-            self._i2c.writeByte(
-                self.address, self.KX13X_CNTL1, self.DEFAULT_SETTINGS)
+            Kx13xInitializations.asynchronous(self)
         # INT_SETTINGS (hardware interrupt)
         elif settings == choices[1]:
-            self.set_interrupt_pin(True, 1, latch_control=True)
-            self.route_hardware_interrupt(self.HI_DATA_READY)
-            self._i2c.writeByte(
-                self.address, self.KX13X_CNTL1, self.INT_SETTINGS)
+            Kx13xInitializations.hard_interrupt(self)
         # SOFT_INT_SETTINGS (software interrupt)
         elif settings == choices[2]:
-            self._i2c.writeByte(
-                self.address, self.KX13X_CNTL1, self.SOFT_INT_SETTINGS)
+            Kx13xInitializations.soft_interrupt(self)
         # BUFFER_SETTINGS_1
         elif settings == choices[3]:
-            self.set_interrupt_pin(True, 1)
-            self.route_hardware_interrupt(self.HI_BUFFER_FULL)
-            self.set_buffer_operation(
-                self.BUFFER_MODE_FIFO, self.BUFFER_16BIT_SAMPLES)
-            self._i2c.writeByte(
-                self.address, self.KX13X_CNTL1, self.INT_SETTINGS)
+            Kx13xInitializations.buffer_settings_1(self)
         # WAKE_UP_TRIGGER
         elif settings == choices[4]:
-            # setup variables
-            c_mode = 1  # default: 0, counter resets
-            th_mode = 1  # default: 1, relative
-            motion_present = 0x01  # default: 0x05, 5 ODR cycles
-
-            # set  Output Data Control Register (ODR) to 200hz
-            reg_value = 0b00001000
-            self._i2c.writeByte(self.address, self.KX13X_ODCNTL, reg_value)
-            # Write 0x73 to Low Power Control Register 1 (LP_CNTL1) to set a
-            # 128-sample average for optimizing noise performance.
-            self._i2c.writeByte(self.address, self.KX13X_LP_CNTL1, 0x73)
-            # Write 0xAE to Control 3 (CNTL3) to set output data rate for the
-            # wakeup engine(OWUF) to 50Hz
-            # --- reset value: 0b10101000, 0.781Hz
-            self._i2c.writeByte(self.address, self.KX13X_CNTL3, 0b10101111)
-
-            # Write 0x30 to Interrupt Control 1 (INC1) to enable physical
-            # interrupt pin INT1, set the polarity of the physical interrupt
-            # to active high and configure for latched operation.
-            # self._i2c.writeByte(self.address, self.KX13X_INC1, 0X30)
-            self.set_interrupt_pin(True, 1)
-            # Write 0x40 to Interrupt Control 4 (INC4) to set the Buffer Full
-            # interrupt to be reported on physical interrupt pin INT1.
-            # self._i2c.writeByte(self.address, self.KX13X_INC4, 0X40)
-            # --- Altered>!
-            self.route_hardware_interrupt(self.HI_WAKE_UP)
-            # Write 0x2B (43 dec) to BUF_CNTL1, which sets a watermark level to
-            # exactly half of the buffer.
-            self._i2c.writeByte(self.address, self.KX13X_BUF_CNTL1, 0X2B)
-            # Write 0xE2 to Buffer Control 2 (BUF_CNTL2) to enable the sample
-            # buffer(BUFE=1), to set the resolution of the acceleration data
-            # samples collected to 16-bit resolution(BRES=1), to enable the
-            # buffer full interrupt(BFIE=1), and set the operating mode of the
-            # sample buffer to Trigger mode.
-            # --- Altered>!
-            self._i2c.writeByte(self.address, self.KX13X_BUF_CNTL2, 0X00)
-            # Write 0x3F to Interrupt Control 2 (INC2) to enable all positive
-            # and negative directions that can cause a wakeup event.
-            self._i2c.writeByte(self.address, self.KX13X_INC2, 0X3F)
-            # Write 0x60 to Control 4 (CNTL4) to set the counter mode to clear
-            # (C_MODE=0), threshold mode to relative(TH_MODE=1), enable the
-            # wakeup function(WUFE=1), disable the back to sleep function
-            # (BTSE=0), set pulse reject mode set to standard operation and set
-            # the output data rate for the back to sleep engine to its default
-            # of 0.781Hz
-            # self._i2c.writeByte(self.address, self.KX13X_CNTL4, 0X60)
-            self.write_to_CNTL4(
-                C_MODE=c_mode, TH_MODE=th_mode,
-                WUFE=1, BTSE=0, PR_MODE=0, OBTS=0)
-            #  Put the sensor into sleep mode
-            self.put_to_sleep()
-            # Write 0x05 to Wakeup Function Counter (WUFC) to set the time
-            # motion must be present for 0.1 second before a Wake-up interrupt
-            # is triggered.
-            self._i2c.writeByte(
-                self.address, self.KX13X_WUFC, motion_present)
-            # Write to Wakeup Function Threshold (WUFTH) to set the wakeup
-            # threshold.
-            self.set_wake_from_sleep_g_threshold(
-                wake_up_threshold or self.wake_up_threshold)
-            #  Write 0xE0 to Control 1 (CNTL1) to set the accelerometer into
-            #  operating mode (PC1=1), full power mode(RES=1), data ready
-            # enabled(DRDYE=1), range to ±2g(GSEL=0).
-            self._i2c.writeByte(self.address, self.KX13X_CNTL1, 0XE0)
+            Kx13xInitializations.wake_up_trigger(self, wake_up_threshold)
         # ADP (advanced data path)
         elif settings == choices[5]:
-            # Write 0x10 to Control 5 (CNTL5) to enable the Advanced Data Path
-            self._i2c.writeByte(self.address, self.KX13X_CNTL5, 0X10)
-            # Write 0x8B to Output Data Control Register (ODCNTL) to bypass the
-            # IIR Filter, set IIR filter corner frequency to ODR/9 (default),
-            # disable Fast Start, and set the ODR to 1600Hz
-            self._i2c.writeByte(self.address, self.KX13X_ODCNTL, 0X8B)
-            # Write 0x73 to Low Power Control Register 1 (LP_CNTL1) to set a
-            # 128-sample average for optimizing current and noise performance.
-            # ---
-            # no averaging
-            reg_setting = 0b00000011
-            self._i2c.writeByte(self.address, self.KX13X_LP_CNTL1, reg_setting)
-            # Write 0x3B to Advanced Data Path Control Register 1 (ADP_CNTL1)
-            # to set the number of samples used to calculate RMS output to 16,
-            # and to set Advanced Data Path ODR to 1600Hz
-            # ---
-            # 2 samples/ 1600Hz
-            reg_setting = 0b00001011
-            self._i2c.writeByte(
-                self.address, self.KX13X_ADP_CNTL1, reg_setting)
-            # Write 0x03 to Advanced Data Path Control Register 2 (ADP_CNTL2)
-            # to make sure Filter 1 and Filter 2 are not bypassed, to select
-            # the RMS data out to XADP, YADP, and ZADP registers, and to set
-            # Filter-2 as a High-pass filter.
-            # ---
-            # also route adp to wake up engine/bypass hp filter 2
-            reg_setting = 0b01010011
-            self._i2c.writeByte(
-                self.address, self.KX13X_ADP_CNTL2, reg_setting)
-            # Write 0x16 to Advanced Data Path Control Register 3 (ADP_CNTL3)
-            # to set Filter-1 Coefficient (1/𝐴) to pass only data below 400Hz.
-            # See Table 1, row
-            # 𝑆𝑅/4 to set Filter-1 LPF
-            # 𝑓𝑐 = 400𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓1_1𝑎 = 22 (𝑑𝑒𝑐) = 16 (ℎ𝑒𝑥).
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL3, 0X16)
-            # Write 0x00 to Advanced Data Path Control Register 4 (ADP_CNTL4),
-            # Advanced Data Path Control Register 5 (ADP_CNTL5),
-            # and Advanced Data Path Control Register 6 (ADP_CNTL6)
-            # to set Filter-1 Coefficient(B/A) to pass only data below 400Hz.
-            # This step is optional as this is also a default setting.
-            # See Table 1, row
-            # 𝑅/4 to set Filter-1 LPF 𝑓𝑐 = 400𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧 .
-            # 𝑎𝑑𝑝_𝑓1_𝑏𝑎 = 0 (𝑑𝑒𝑐) = 00 (ℎ𝑒𝑥).
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL4, 0X00)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL5, 0X00)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL6, 0X00)
-            # Write 0x1A to Advanced Data Path Control Register 7 (ADP_CNTL7),
-            # 0xF6 to Advanced Data Path Control Register 8 (ADP_CNTL8),
-            # and 0x15 to Advanced Data Path Control Register 9 (ADP_CNTL9)
-            # to set Filter-1 Coefficient(C/A).
-            # See Table 1, row
-            # 𝑆𝑅/4 to set Filter-1 LPF 𝑓𝑐 = 400𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓1_𝑐𝑎 = 1439258 (𝑑𝑒𝑐) = 15𝐹61𝐴(ℎ𝑒𝑥).
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL7, 0X1A)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL8, 0XF6)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL9, 0X15)
-            # Write 0x01 to Advanced Data Path Control Register 10
-            # (ADP_CNTL10) to set ADP shift scale value for Filter-1.
-            # See Table 1, row
-            # 𝑆𝑅/4 to set Filter-1 LPF 𝑓𝑐 = 400𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓1_𝑖𝑠ℎ = 1 (𝑑𝑒𝑐) = 01 (ℎ𝑒𝑥).
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL10, 0X01)
-            # Write 0xB5 to Advanced Data Path Control Register 11
-            # (ADP_CNTL11). This register consists of 𝑎𝑑𝑝_𝑓𝑖_𝑜𝑠ℎ(1bit) and
-            # 𝑎𝑑𝑝_𝑓2_1𝑎(7bit). See Table 1, row
-            # 𝑆𝑅/4 to set Filter-1 LPF 𝑓𝑐 = 400𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧 .
-            # 𝑎𝑑𝑝_𝑓1_0𝑠ℎ = 1 (𝑑𝑒𝑐) .
-            # See Table 3, row
-            # 𝑆𝑅/8 to set Filter-2 HPF 𝑓𝑐 = 200𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓2_1𝑎 = 53 (𝑑𝑒𝑐).
-            # ---
-            # 25 hz high pass @ 1600hz ODR = SR/64
-            # SR/64 table 3 rms_f2_1a = 116
-            # reg_setting = 1 << 7 | 116
-            self._i2c.writeByte(
-                self.address, self.KX13X_ADP_CNTL11, 0xB5)
-            # Write 0x05 to Advanced Data Path Control Register 12
-            # (ADP_CNTL12), 0x35 to Advanced Data Path Control Register 13
-            # (ADP_CNTL13) to set Filter-2 coefficient(B/A). See Table 3, row
-            # 𝑆𝑅/8 to set Filter-2 HPF 𝑓𝑐 = 200𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓2_𝑏𝑎 = 13573 (𝑑𝑒𝑐) = 3505 (ℎ𝑒𝑥).
-            # ---
-            # 25 hz high pass @ 1600hz ODR = SR/64
-            # SR/64 table 3 rms_f2_ba = 29699 (dec) = 7403 (hex)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL12, 0X05)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL13, 0X35)
-            # Write 0x02 to Advanced Data Path Control Register 18
-            # (ADP_CNTL18), to set ADP input scale shift value for Filter-2.
-            # See Table 3, row
-            # 𝑆𝑅/8 to set Filter-2 HPF 𝑓𝑐 = 200𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓2_𝑖𝑠ℎ = 2 (𝑑𝑒𝑐) = 02 (ℎ𝑒𝑥).
-            # ---
-            # 25 hz high pass @ 1600hz ODR = SR/64
-            # SR/64 table 3 rms_f2_ish = 5 (dec) = 05 (hex)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL18, 0X02)
-            # Write 0x02 to Advanced Data Path Control Register 19
-            # (ADP_CNTL19), to set ADP output scale shift value for Filter-2.
-            # See Table 3, row
-            # 𝑆𝑅/8 to set Filter-2 HPF 𝑓𝑐 = 200𝐻𝑧 with 𝑆𝑅 = 1600𝐻𝑧.
-            # 𝑎𝑑𝑝_𝑓2_0𝑠ℎ = 2 (𝑑𝑒𝑐) = 02 (ℎ𝑒𝑥).
-            # ---
-            # 25 hz high pass @ 1600hz ODR = SR/64
-            # SR/64 table 3 rms_f2osh = 5 (dec) = 05 (hex)
-            self._i2c.writeByte(self.address, self.KX13X_ADP_CNTL19, 0X02)
-            # Write 0x20 to Interrupt Control Register 1 (INC1) to enable the
-            # physical interrupt pin in active-low mode, latching until
-            # cleared by reading INT_REL.
-            # self._i2c.writeByte(self.address, self.KX13X_INC1, 0X20)
-            self.set_interrupt_pin(True, 1)
-            # Write 0x10 to Interrupt Control Register 4 (INC4) to set the
-            # Data ready interrupt to report on physical interrupt pin INT1.
-            self._i2c.writeByte(self.address, self.KX13X_INC4, 0X10)
-            #  Write 0xE0 to Control 1 (CNTL1) to set the accelerometer into
-            #  operating mode (PC1=1), full power mode(RES=1), data ready
-            # enabled(DRDYE=1), range to ±2g(GSEL=0).
-            self._i2c.writeByte(self.address, self.KX13X_CNTL1, 0XE0)
+            Kx13xInitializations.adp_enable(self)
         # ADP OFF
         elif settings == choices[6]:
-            # Write 0x00 to Control 5 (CNTL5) to disable the Advanced Data Path
-            self._i2c.writeByte(self.address, self.KX13X_CNTL5, 0X00)
-            # reset ADP_CNTL2
-            reset_value = 0b00000010
-            self._i2c.writeByte(
-                self.address, self.KX13X_ADP_CNTL2, reset_value)
+            Kx13xInitializations.adp_disable(self)
+            return
         else:
             raise ValueError("Initialization method not recognized.")
+
+        # if g_range given overwrite setting from default initializations.
+        if g_range:
+            self.set_range(g_range)
 
     def write_to_CNTL4(self,
                        C_MODE: 0 or 1 or None = None,
@@ -639,7 +452,7 @@ class QwiicKX13XCore(object):
         reg_val = self._i2c.readByte(self.address, self.KX13X_CNTL1)
         return (reg_val & 0x80) >> 7
 
-    def set_range(self, kx13x_range):
+    def set_range(self, kx13x_range: int = 0):
         """
             Sets the range reported by the accelerometer. For the KX132, the
             range is from 2G - 16G and for the KX134 it's 8G - 32G.
@@ -657,8 +470,11 @@ class QwiicKX13XCore(object):
             :rtype: bool
         """
 
-        if kx13x_range < 0 or kx13x_range > 3:
-            raise ValueError('range setting must be between 0 to 3 inclusive.')
+        if kx13x_range not in list(range(4)):
+            msg = "Range setting must be integer in range 0 to 3 inclusive."
+            if isinstance(kx13x_range, int):
+                raise ValueError(msg)
+            raise TypeError(msg)
 
         accel_state = self.get_accel_state()
         self.accel_control(False)
@@ -679,13 +495,16 @@ class QwiicKX13XCore(object):
 
         """
         if rate not in list(range(16)):
-            return False
+            msg = "Rate setting must be integer in range 0 to 15 inclusive."
+            if isinstance(rate, int):
+                raise ValueError(msg)
+            raise TypeError(msg)
 
         accel_state = self.get_accel_state()
         self.accel_control(False)
 
         reg_val = self._i2c.readByte(self.address, self.KX13X_ODCNTL)
-        reg_val &= 0xf0
+        reg_val &= 0xF0
         reg_val |= rate
         self._i2c.writeByte(self.address, self.KX13X_ODCNTL, reg_val)
         self.accel_control(accel_state)

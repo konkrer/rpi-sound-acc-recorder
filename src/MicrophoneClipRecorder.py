@@ -15,7 +15,7 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 from datetime import datetime as dt
-from lib.utils import led_change, buzz_buzzer
+from lib.utils import led_change  # , buzz_buzzer
 from lib.common import (
     TME_STMP_FORMAT, MIC_TRIGGER_NAME, ACCEL_TRIGGER_NAME,
     MIC_RECORD_EVENT_MSG, MIC_RECORD_STOP_EVENT_MSG, ACCEL_RECORD_EVENT_MSG,
@@ -312,7 +312,7 @@ class MicrophoneClipRecorder:
                     accel_has_triggered or self.threshold_trigger(data)):
                 write_idx = 0
                 led_change(True)
-                buzz_buzzer(True)
+                # buzz_buzzer(True)
                 if not accel_has_triggered:
                     sound_triggered_rec = True
                     # print(' >-Sound Trigger-< '.center(columns, 'S'))
@@ -342,7 +342,7 @@ class MicrophoneClipRecorder:
                         (MIC_RECORD_STOP_EVENT_MSG, write_idx/samplerate))
 
                 if write_idx >= stop_frame:
-                    buzz_buzzer(False)
+                    # buzz_buzzer(False)
                     # print(' > Microphone Rec. Stopped < '.center(
                     # columns, '-'))
                     # print(f' > {sound_triggered_rec=} < '.center(

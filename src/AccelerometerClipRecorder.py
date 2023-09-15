@@ -16,6 +16,7 @@ import qwiic_kx13x
 import numpy as np
 import asyncio
 from datetime import datetime as dt
+from lib.utils import led_change, buzz_buzzer
 from lib.common import (
     TME_STMP_FORMAT, MIC_TRIGGER_NAME, ACCEL_TRIGGER_NAME,
     MIC_RECORD_EVENT_MSG, MIC_RECORD_STOP_EVENT_MSG, ACCEL_RECORD_EVENT_MSG,
@@ -45,11 +46,10 @@ ODR_SETTINGS = {
 }
 
 # Recording settings
-CLIP_DURATION = 4  # seconds
+CLIP_DURATION = 2  # seconds
 MAX_CONTINUOUS_CLIP = 1  # mins
 # back to sleep threshold
 BTS_THRESHOLD = 0.05
-READ_DELAY = 1 / ODR
 SAVE_FOLDER = 'accelerometer_data'
 
 # I/O settings
@@ -73,20 +73,20 @@ class AccelerometerClipRecorder:
         # Accelerometer initialization
         self.accel = qwiic_kx13x.QwiicKX132()
         self.accel.set_standby_mode()
-        self.accel.set_output_data_rate(ODR_SETTINGS[odr])
-        self.accel.initialize(startup_mode, wake_up_g_threshold)
+        self.accel.output_data_rate = ODR_SETTINGS[odr]
+        self.accel.initialize(
+            startup_mode, wake_up_g_threshold, g_range=g_range)
         self.wake_up_g_threshold = wake_up_g_threshold
         self.bts_threshold = bts_threshold or BTS_THRESHOLD
         self.clip_duration = clip_duration
         self.max_continuous_clip = max_continuous_clip_duration
         self.odr = odr
+        self.read_delay = 1 / self.odr
         self.g_range = g_range
-        if g_range:
-            self.accel.set_range(g_range)
 
     def adp_off(self) -> None:
         self.accel.initialize('ADP_OFF')
-        self.accel.set_output_data_rate(ODR_SETTINGS[self.odr])
+        self.accel.output_data_rate = ODR_SETTINGS[self.odr]
 
     async def threshold_alert(self):
         self.accel.accel_control(False)
@@ -94,9 +94,8 @@ class AccelerometerClipRecorder:
         self.accel.clear_buffer()
         self.accel.initialize(
             settings="WAKE_UP_TRIGGER",
-            wake_up_threshold=self.wake_up_g_threshold)
-        if self.g_range:
-            self.accel.set_range(self.g_range)
+            wake_up_threshold=self.wake_up_g_threshold,
+            g_range=self.g_range)
 
         while True:
             if GPIO.input(dataReadyPin) == 1:
@@ -110,10 +109,8 @@ class AccelerometerClipRecorder:
         self.accel.accel_control(False)
         self.accel.clear_interrupt()
         self.accel.clear_buffer()
-        self.accel.initialize(settings="INT_SETTINGS")
-        if self.g_range:
-            self.accel.set_range(self.g_range)
-        # print(' < Accelerometer Rec. Started > '.center(columns, '*'))
+        self.accel.initialize(settings="INT_SETTINGS", g_range=self.g_range)
+
         metadata = trigger_info or [dt.now(), '']
 
         # data buffer
@@ -121,6 +118,9 @@ class AccelerometerClipRecorder:
         buffer = np.zeros((buffer_frames, num_accel_axes), dtype=np.float32)
         write_idx = 0
 
+        print(' < Accelerometer Rec. Started > '.center(columns, '*'))
+        led_change(True)
+        buzz_buzzer(True)
         while True:
             if GPIO.input(dataReadyPin) == 1:
                 if write_idx == buffer_frames:
@@ -130,13 +130,39 @@ class AccelerometerClipRecorder:
                     self.accel.accel.x, self.accel.accel.y, self.accel.accel.z]
                 write_idx += 1
                 self.accel.clear_interrupt()
-            # time.sleep(READ_DELAY)  # limits achievable ODR
+            # time.sleep(self.read_delay)  # limits achievable ODR
 
-        # print(' > Accelerometer Rec. Stopped < '.center(columns, '-'))
+        buzz_buzzer(False)
+        led_change()
+        print(' > Accelerometer Rec. Stopped < '.center(columns, '-'))
 
-        # create sound and/or vibration threshold tasks
         self.save_data_to_file(buffer, metadata)
         return True
+
+    def threshold_recorder(self):
+        # set up accelerometer to trigger mode
+        self.accel.clear_buffer()
+        self.accel.initialize(
+            settings="WAKE_UP_TRIGGER",  # changes ODR
+            wake_up_threshold=self.wake_up_g_threshold,
+            g_range=self.g_range)
+
+        while True:
+            # if accel wake up trigger
+            if GPIO.input(dataReadyPin) == 1:
+                # return to ODR for recording
+                self.accel.output_data_rate = ODR_SETTINGS[self.odr]
+                self.record_clip()
+
+                # set up accelerometer to trigger mode
+                self.accel.clear_buffer()
+                self.accel.initialize(
+                    settings="WAKE_UP_TRIGGER",
+                    wake_up_threshold=self.wake_up_g_threshold,
+                    g_range=self.g_range)
+
+            # default wake up engine rate @ 50hz. 1/rate
+            time.sleep(.2)
 
     def messaging_threshold_recorder(self, msg_out_queue: asyncio.Queue,
                                      msg_in_queue: asyncio.Queue, loop):
@@ -146,9 +172,8 @@ class AccelerometerClipRecorder:
         # self.adp_off()
         self.accel.initialize(
             settings="WAKE_UP_TRIGGER",
-            wake_up_threshold=self.wake_up_g_threshold)
-        if self.g_range:
-            self.accel.set_range(self.g_range)
+            wake_up_threshold=self.wake_up_g_threshold,
+            g_range=self.g_range)
 
         # data buffer
         max_clip_in_seconds = int(self.max_continuous_clip * 60)
@@ -167,10 +192,10 @@ class AccelerometerClipRecorder:
             if GPIO.input(dataReadyPin) == 1 or microphone_has_triggered:
                 # set up accelerometer to synchronous w/ hardware interrupt
                 self.accel.clear_buffer()
-                self.adp_off()
-                self.accel.initialize(settings="INT_SETTINGS")
-                if self.g_range:
-                    self.accel.set_range(self.g_range)
+                # self.adp_off()
+                self.accel.output_data_rate = ODR_SETTINGS[self.odr]
+                self.accel.initialize(
+                    settings="INT_SETTINGS", g_range=self.g_range)
 
                 accel_triggered_rec = False
                 if not microphone_has_triggered:
@@ -219,7 +244,7 @@ class AccelerometerClipRecorder:
                             self.accel.accel.z]
                         write_idx += 1
                         self.accel.clear_interrupt()
-                    # time.sleep(READ_DELAY)  # limits achievable ODR
+                    # time.sleep(self.read_delay)  # limits achievable ODR
 
                 # print(' > Accel Rec. Stopped < '.center(columns, '-'))
 
@@ -232,9 +257,8 @@ class AccelerometerClipRecorder:
                 self.accel.clear_buffer()
                 self.accel.initialize(
                     settings="WAKE_UP_TRIGGER",
-                    wake_up_threshold=self.wake_up_g_threshold)
-                if self.g_range:
-                    self.accel.set_range(self.g_range)
+                    wake_up_threshold=self.wake_up_g_threshold,
+                    g_range=self.g_range)
 
             # default wake up engine rate @ 50hz. 1/rate
             time.sleep(.2)
@@ -284,9 +308,10 @@ class AccelerometerClipRecorder:
 
 if __name__ == '__main__':
     try:
-        recorder = AccelerometerClipRecorder()
-        print(" Recording!! ".center(50, '*'))
-        recorder.record_clip()
+        recorder = AccelerometerClipRecorder(
+            wake_up_g_threshold=0.025)
+        print(" Sensor Active!! ".center(50, '*'))
+        recorder.threshold_recorder()
         print(" Done!! ".center(50, '*'))
     except (KeyboardInterrupt, SystemExit):
         print("\nExiting!")

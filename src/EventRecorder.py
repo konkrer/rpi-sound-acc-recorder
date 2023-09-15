@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     pass
 
 # Accel Settings
-ACCEL_WAKE_UP_G_THRESHOLD = None  # None equivalent to 0.5g
+ACCEL_WAKE_UP_G_THRESHOLD = 0.03  # None equivalent to 0.5g
 ACCEL_BTS_G_THRESHOLD = None
 ACCEL_G_RANGE = None  # None 1equivalent to '2G'
 
