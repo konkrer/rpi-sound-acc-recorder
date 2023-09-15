@@ -22,26 +22,32 @@ bd = BlueDot()
 def kill_event_recorder():
     buzz_buzzer(on=False)
     beep_buzzer()
-    subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
+    subprocess.run(
+        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
+
 
 def launch_event_recorder():
     beep_buzzer(twice=True)
     # subprocess call allows EventRecorder to run properly on Raspberry Pi
     # from this button listening startup script. Avoids input overflows.
-    subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'])
+    subprocess.run(
+        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'])
+
 
 def exit_control_listener():
     kill_event_recorder()
     sys.exit(0)
 
+
 def listen_for_press():
     led_change(True, 0)
     print('\nListening for BlueDot button press.\n' +
-          f'Press blue dot to Start.')
+          'Press blue dot to Start.')
     bd.wait_for_press()
 
+
 def main():
-    recorder_on = False    
+    recorder_on = False
     while True:
         if not recorder_on:
             listen_for_press()
@@ -53,12 +59,10 @@ def main():
             kill_event_recorder()
 
 
-
-
 if __name__ == '__main__':
     try:
-        main()      
-        
+        main()
+
     except (KeyboardInterrupt):
         print('\nExiting Start Button Listener\n')
         led_change(False, 0)
