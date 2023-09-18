@@ -140,6 +140,7 @@ class AccelerometerClipRecorder:
         return True
 
     def threshold_recorder(self):
+        led_change(True, 2)
         # set up accelerometer to trigger mode
         self.accel.clear_buffer()
         self.accel.initialize(
@@ -162,7 +163,7 @@ class AccelerometerClipRecorder:
                     g_range=self.g_range)
 
             # default wake up engine rate @ 50hz. 1/rate
-            time.sleep(.2)
+            time.sleep(.02)
 
     def messaging_threshold_recorder(self, msg_out_queue: asyncio.Queue,
                                      msg_in_queue: asyncio.Queue, loop):
@@ -309,7 +310,7 @@ class AccelerometerClipRecorder:
 if __name__ == '__main__':
     try:
         recorder = AccelerometerClipRecorder(
-            wake_up_g_threshold=0.025)
+            wake_up_g_threshold=0.02)
         print(" Sensor Active!! ".center(50, '*'))
         recorder.threshold_recorder()
         print(" Done!! ".center(50, '*'))

@@ -271,11 +271,11 @@ class QwiicKX13XCore(object):
         return chipID
 
     @classmethod
-    def initialize_choices(cls) -> list[str]:
+    def initialization_choices(cls) -> list[str]:
         return ['DEFAULT_SETTINGS', 'INT_SETTINGS', 'SOFT_INT_SETTINGS',
                 'BUFFER_SETTINGS_1', 'WAKE_UP_TRIGGER', 'ADP', 'ADP_OFF']
 
-    def initialize(self, settings='DEFAULT_SETTINGS',
+    def initialize(self, settings: str = 'DEFAULT_SETTINGS',
                    wake_up_threshold: None or float or int = None,
                    g_range: None or int = None,
                    ) -> None:
@@ -286,7 +286,7 @@ class QwiicKX13XCore(object):
             advanced data path.
         """
         self.set_standby_mode()
-        choices = self.initialize_choices()
+        choices = self.initialization_choices()
 
         # DEFAULT_SETTINGS (asynchronous)
         if settings == choices[0]:
@@ -311,7 +311,9 @@ class QwiicKX13XCore(object):
             Kx13xInitializations.adp_disable(self)
             return
         else:
-            raise ValueError("Initialization method not recognized.")
+            choices = self.initialization_choices()
+            arg_err(settings, [str],
+                    f'settings must be a str in {choices}')
 
         # if g_range given overwrite setting from default initializations.
         if g_range:
@@ -323,7 +325,7 @@ class QwiicKX13XCore(object):
                        WUFE: 0 or 1 or None = None,
                        BTSE: 0 or 1 or None = None,
                        PR_MODE: 0 or 1 or None = None,
-                       OBTS: int or float or None = None
+                       OBTS: int or None = None
                        ) -> None:
         """Write settings to CNTL4 register.
 
@@ -342,7 +344,7 @@ class QwiicKX13XCore(object):
                 Defaults to None.
             PR_MODE (0 or 1 or None, optional): Pulse Reject mode.
                 Defaults to None.
-            OBTS (int or float or None, optional): sets the output data rate
+            OBTS (int or None, optional): sets the output data rate
                 at which the back-to-sleep (motion detection) performs its
                 function during wake state. Setting must be between 0 and 8.
                 Defaults to None.
@@ -350,43 +352,59 @@ class QwiicKX13XCore(object):
         # if not setting new values use original settings
         reg_val = self._i2c.readByte(self.address, self.KX13X_CNTL4)
 
-        if C_MODE:
+        if C_MODE is not None:
+            if C_MODE not in [0, 1]:
+                arg_err(C_MODE, [int], 'C_MODE must be one of "0, 1".')
             C_MODE = C_MODE << 7
             reg_val &= 0b01111111
             reg_val |= C_MODE
 
-        if TH_MODE:
+        if TH_MODE is not None:
+            if TH_MODE not in [0, 1]:
+                arg_err(
+                    TH_MODE, [int], 'TH_MODE must be one of "0, 1".')
             TH_MODE = TH_MODE << 6
             reg_val &= 0b10111111
             reg_val |= TH_MODE
 
-        if WUFE:
+        if WUFE is not None:
+            if WUFE not in [0, 1]:
+                arg_err(WUFE, [int], 'WUFE must be one of "0, 1".')
             WUFE = WUFE << 5
             reg_val &= 0b11011111
             reg_val |= WUFE
 
-        if BTSE:
+        if BTSE is not None:
+            if BTSE not in [0, 1]:
+                arg_err(BTSE, [int], 'BTSE must be one of "0, 1".')
             BTSE = BTSE << 4
             reg_val &= 0b11101111
             reg_val |= BTSE
 
-        if PR_MODE:
+        if PR_MODE is not None:
+            if PR_MODE not in [0, 1]:
+                arg_err(
+                    PR_MODE, [int], 'PR_MODE must be one of "0, 1".')
             PR_MODE = PR_MODE << 3
             reg_val &= 0b11110111
             reg_val |= PR_MODE
 
-        if OBTS:
-            assert isinstance(OBTS, (int, float)) and 0 <= OBTS < 8, \
-                "OBTS must be an number from 0 to eight not inclusive."
+        if OBTS is not None:
+            if OBTS not in list(range(8)):
+                arg_err(OBTS, [int],
+                        'OBTS must be between 0 and 7 inclusive.')
             reg_val &= 0b11111000
             reg_val |= OBTS
 
         self._i2c.writeByte(self.address, self.KX13X_CNTL4, reg_val)
 
-    def set_wake_from_sleep_g_threshold(self, g_threshold: float or int = 0.5
-                                        ) -> None:
+    def set_wake_from_sleep_g_threshold(
+            self, g_threshold: float or int = 0.5) -> None:
         # check input
-        assert 0 < g_threshold < 8
+        if not 0 < g_threshold < 8:
+            arg_err(
+                g_threshold, [float, int],
+                'g_threshold must be number between 0 and 8 exclusive.')
 
         # convert g to setting
         setting = int(g_threshold * 256)
@@ -436,7 +454,8 @@ class QwiicKX13XCore(object):
             :rtype: bool
         """
         if enable not in [True, False, 0, 1]:
-            return False
+            arg_err(enable, [bool, int],
+                    'enable must be one of "True, False, 0, 1".')
 
         reg_val = self._i2c.readByte(self.address, self.KX13X_CNTL1)
         reg_val &= 0x7F
@@ -471,10 +490,9 @@ class QwiicKX13XCore(object):
         """
 
         if kx13x_range not in list(range(4)):
-            msg = "Range setting must be integer in range 0 to 3 inclusive."
-            if isinstance(kx13x_range, int):
-                raise ValueError(msg)
-            raise TypeError(msg)
+            arg_err(
+                kx13x_range, [int],
+                "kx13x_range must be integer between 0 to 3 inclusive.")
 
         accel_state = self.get_accel_state()
         self.accel_control(False)
@@ -495,10 +513,9 @@ class QwiicKX13XCore(object):
 
         """
         if rate not in list(range(16)):
-            msg = "Rate setting must be integer in range 0 to 15 inclusive."
-            if isinstance(rate, int):
-                raise ValueError(msg)
-            raise TypeError(msg)
+            arg_err(
+                rate, [int],
+                "rate must be integer in range 0 to 15 inclusive.")
 
         accel_state = self.get_accel_state()
         self.accel_control(False)
@@ -522,8 +539,8 @@ class QwiicKX13XCore(object):
 
     output_data_rate = property(get_output_data_rate, set_output_data_rate)
 
-    def set_interrupt_pin(self, enable, polarity=1, pulse_width=0,
-                          latch_control=True):
+    def set_interrupt_pin(self, enable: bool or int, polarity: int = 1,
+                          pulse_width: int = 0, latch_control: bool = True):
         """
             Sets all of whether the data ready bit is reported to the hardware
             interrupt pin, the polarity of the signal (HIGH or LOW), the width
@@ -538,13 +555,17 @@ class QwiicKX13XCore(object):
 
         """
         if enable not in [True, False, 0, 1]:
-            return False
+            arg_err(enable, [bool, int],
+                    'enable must be one of "True, False, 0, 1".')
         if polarity not in [0, 1]:
-            return False
+            arg_err(polarity, [int],
+                    'polarity must be one of "0, 1".')
         if pulse_width not in [0, 1, 2, 3]:
-            return False
-        if latch_control not in [True, False]:
-            return False
+            arg_err(pulse_width, [int],
+                    'pulse_width must be one of "0, 1, 2, 3".')
+        if not isinstance(latch_control, bool):
+            arg_err(latch_control, [bool],
+                    'latch_control must be of type bool')
         # latch bit setting:
         # 0 – latched until cleared by reading INT_REL
         # 1 – pulsed. The pulse width is configurable by PW1
@@ -562,22 +583,25 @@ class QwiicKX13XCore(object):
         self._i2c.writeByte(self.address, self.KX13X_INC1, reg_val)
         self.accel_control(accel_state)
 
-    def route_hardware_interrupt(self, rdr, pin=1):
+    def route_hardware_interrupt(self, rdr: int, pin: 1 or 2 = 1):
         """
             Determines which interrupt is reported: freefall, buffer full,
             watermark, data ready, back to sleep, tap/double tap, wakeup or
             tilt. Also which hardware pin its reported on: one or two.
             :param rdr: The interrupt to be reported.
             :param pin: The hardware pin on which the interrupt is reported.
-            :return: Returns true after configuring the register and false if
-            an an incorrect argument is given.
+            :return: None
             :rtype: bool
 
         """
-        if rdr < 0 or rdr > 128:
-            raise ValueError('rdr must be between 0 and 128 inclusive')
-        if pin != 1 and pin != 2:
-            raise ValueError('pin value must be 0 or 1')
+        rdr_choices = [0b00000000, 0b00000001, 0b00000010, 0b00000100,
+                       0b00001000, 0b00010000, 0b00100000, 0b01000000,
+                       0b10000000]
+        if rdr not in rdr_choices:
+            arg_err(rdr, [int],
+                    f'rdr must be one of {rdr_choices} .')
+        if pin not in [1, 2]:
+            arg_err(pin, [int], 'pin must be one of "1 or 2".')
 
         accel_state = self.get_accel_state()
         self.accel_control(False)
@@ -588,7 +612,6 @@ class QwiicKX13XCore(object):
             self._i2c.writeByte(self.address, self.KX13X_INC6, rdr)
 
         self.accel_control(accel_state)
-        return True
 
     def clear_interrupt(self):
         """
@@ -636,8 +659,10 @@ class QwiicKX13XCore(object):
             :return: Returns false if an incorrect argument is given.
             :rtype: bool
         """
-        if threshold < 2 or threshold > 171:
-            return False
+        if threshold not in list(range(2, 172)):
+            arg_err(
+                threshold, [int],
+                'threshold must be int between 2 and 171 inclusive.')
 
         resolution = self._i2c.readByte(self.address, self.KX13X_BUF_CNTL2)
         resolution &= 0x40
@@ -661,9 +686,11 @@ class QwiicKX13XCore(object):
             :rtype: bool
         """
         if resolution not in [0, 1]:
-            return False
+            arg_err(resolution, [int],
+                    'resolution must be one of "0, 1".')
         if operation_mode not in [0, 1, 2]:
-            return False
+            arg_err(operation_mode, [
+                int], 'operation_mode must be one of "0, 1, 2".')
 
         combined_arguments = (resolution << 6) | operation_mode
 
@@ -683,9 +710,13 @@ class QwiicKX13XCore(object):
             :rtype: bool
         """
         if activate_buffer not in [True, False, 0, 1]:
-            return False
+            arg_err(
+                activate_buffer, [bool, int],
+                'activate_buffer must be one of "True, False, 0, 1".')
         if enable_interrupt not in [True, False, 0, 1]:
-            return False
+            arg_err(
+                enable_interrupt, [bool, int],
+                'enable_interrupt must be one of "True, False, 0, 1".')
 
         combined_arguments = (activate_buffer << 7) | (enable_interrupt << 5)
 
@@ -764,7 +795,9 @@ class QwiicKX13XCore(object):
             zData = zData_2s_comp if zData_2s_comp <= highest_pos_value else \
                 zData_2s_comp - 2**8
         else:
-            raise ValueError("Property bit_depth must be 8 or 16.")
+            arg_err(
+                self.bit_depth, [int],
+                "Property bit_depth must be 8 or 16.")
 
         self.raw_output_data.x = xData
         self.raw_output_data.y = yData
@@ -816,7 +849,7 @@ class QwiicKX132(QwiicKX13XCore):
         else:
             return False
 
-    def set_range(self, G_range):
+    def set_range(self, G_range: str):
         convertor = {
             '2G': self.KX132_RANGE2G,
             '4G': self.KX132_RANGE4G,
@@ -824,8 +857,10 @@ class QwiicKX132(QwiicKX13XCore):
             '16G': self.KX132_RANGE16G,
         }
         if G_range not in convertor.keys():
-            raise ValueError(
+            arg_err(
+                G_range, [str],
                 'argument `G_range` must be "2G", "4G", "8G", or "16G".')
+
         kx132_range = convertor[G_range]
         super().set_range(kx132_range)
 
@@ -950,3 +985,12 @@ class QwiicKX134(QwiicKX13XCore):
                 self.raw_output_data.y * self.CONV_64G, 6)
             self.kx134_accel.z = round(
                 self.raw_output_data.z * self.CONV_64G, 6)
+
+
+def arg_err(given_input: any,
+            valid_types: list[type],
+            msg: str) -> None:
+    given_input_type = type(given_input)
+    if given_input_type in valid_types:
+        raise ValueError(msg)
+    raise TypeError(msg)

@@ -32,22 +32,24 @@ class Kx13xInitializations:
     def wake_up_trigger(cls, kx, wake_up_threshold
                         ) -> None:
         # setup variables
-        c_mode = 1  # default: 0, counter resets
+        c_mode = 0  # default: 0, counter resets
         th_mode = 1  # default: 1, relative
-        motion_present = 0x01  # default: 0x05, 5 ODR cycles
+        pr_mode = 1  # default: None or 0 (off)
+        motion_present = 2  # default: 0x05, 5 ODR cycles
 
-        # set  Output Data Control Register (ODR) to 200hz
+        # Write 0x06 to Output Data Control (ODCNTL) to set the Output
+        # Data Rate (ODR) of the accelerometer to 50 Hz.
         # 200hz -> 0b00001000
-        reg_value = 0b01000110  # NOTE:LPRO set at ODR/2, ODR set 50Hz
+        reg_value = 0b01001000  # NOTE:LPRO set at ODR/2, ODR set 200Hz
         kx._i2c.writeByte(kx.address, kx.KX13X_ODCNTL, reg_value)
         # Write 0x73 to Low Power Control Register 1 (LP_CNTL1) to set a
         # 128-sample average for optimizing noise performance.
         kx._i2c.writeByte(kx.address, kx.KX13X_LP_CNTL1, 0x73)
         # Write 0xAE to Control 3 (CNTL3) to set output data rate for the
         # wakeup engine(OWUF) to 50Hz
-        # --- reset value: 0b10101000, 0.781Hz OWUF
-        # NOTE: OWUF set 12.5Hz
-        kx._i2c.writeByte(kx.address, kx.KX13X_CNTL3, 0b10101100)
+        # reset value: 0b10101000, 0.781Hz OWUF
+        reg_value = 0b10101110  # NOTE: OWUF set 50Hz
+        kx._i2c.writeByte(kx.address, kx.KX13X_CNTL3, reg_value)
 
         # Write 0x30 to Interrupt Control 1 (INC1) to enable physical
         # interrupt pin INT1, set the polarity of the physical interrupt
@@ -56,8 +58,8 @@ class Kx13xInitializations:
         kx.set_interrupt_pin(True, 1)
         # Write 0x40 to Interrupt Control 4 (INC4) to set the Buffer Full
         # interrupt to be reported on physical interrupt pin INT1.
+        # NOTE: buffer off.
         # kx._i2c.writeByte(kx.address, kx.KX13X_INC4, 0X40)
-        # --- Altered>!
         kx.route_hardware_interrupt(kx.HI_WAKE_UP)
         # Write 0x2B (43 dec) to BUF_CNTL1, which sets a watermark level to
         # exactly half of the buffer.
@@ -67,8 +69,10 @@ class Kx13xInitializations:
         # samples collected to 16-bit resolution(BRES=1), to enable the
         # buffer full interrupt(BFIE=1), and set the operating mode of the
         # sample buffer to Trigger mode.
-        # --- Altered>!
-        kx._i2c.writeByte(kx.address, kx.KX13X_BUF_CNTL2, 0X00)
+        # NOTE: buffer off
+        # reset value: 0b00000000, buffer off
+        # kx._i2c.writeByte(kx.address, kx.KX13X_BUF_CNTL2, 0xE2)
+        #
         # Write 0x3F to Interrupt Control 2 (INC2) to enable all positive
         # and negative directions that can cause a wakeup event.
         kx._i2c.writeByte(kx.address, kx.KX13X_INC2, 0X3F)
@@ -81,7 +85,7 @@ class Kx13xInitializations:
         # kx._i2c.writeByte(kx.address, kx.KX13X_CNTL4, 0X60)
         kx.write_to_CNTL4(
             C_MODE=c_mode, TH_MODE=th_mode,
-            WUFE=1, BTSE=0, PR_MODE=0, OBTS=0)
+            WUFE=1, BTSE=0, PR_MODE=pr_mode, OBTS=0)
         #  Put the sensor into sleep mode
         kx.put_to_sleep()
         # Write 0x05 to Wakeup Function Counter (WUFC) to set the time

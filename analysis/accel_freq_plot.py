@@ -7,21 +7,15 @@ assert pdb
 # plt.style.use('seaborn-v0_8-poster')
 
 ODR = 800
-CLIP_DATA_DURATION = 4
+CLIP_DATA_DURATION = 2
 
 
-# car
-# folder = 'car_roof_rack'
-# fn = 'accel_13_43_09__25_02_23_trig_accel'
-# fn = 'accel_13_43_33__25_02_23_trig_accel'
-# pickup
-# folder = 'pickup1'
-# fn = 'accel_16_55_49__01_03_23_trig_accel'
-# fn = 'accel_16_53_08__01_03_23_trig_accel'
 # folder = 'pickup_on_engine'
 # fn = 'accel_19_36_39__17_03_23_trig_accel'
-folder = 'accel_test'
-fn = 'still_9_7_23'
+# folder = 'accel_test'
+# fn = 'still_9_7_23'
+folder = 'self_wake_events'
+fn = 'accel_22_09_05__15_09_23'
 
 
 def remove_offset(data: np.array) -> np.array:
@@ -85,6 +79,7 @@ def main() -> None:
     plt.stem(data_map, max_data, markerfmt=" ", basefmt=" ")
     # plt.xlim(0, 100)
 
+    plt.savefig(fname=f'analysis/data/{folder}/{fn}')
     plt.show()
 
 

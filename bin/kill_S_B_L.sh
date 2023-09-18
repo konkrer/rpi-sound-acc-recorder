@@ -15,4 +15,11 @@ then
   bash -c "kill -9 `ps -h | grep EventRecorder.py -m 1 | awk '{print $1;}'`"
 fi
 
+accel_results=`ps -h |grep AccelerometerClipRecorder.py | wc -l`
+
+if [ $accel_results -eq 2 ]
+then
+  bash -c "kill -9 `ps -h | grep AccelerometerClipRecorder.py -m 1 | awk '{print $1;}'`"
+fi
+
 ~/dev/rpi-sound-acc-recorder/bin/ledsOff.sh

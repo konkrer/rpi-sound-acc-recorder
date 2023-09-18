@@ -31,7 +31,7 @@ def launch_event_recorder():
     # subprocess call allows EventRecorder to run properly on Raspberry Pi
     # from this button listening startup script. Avoids input overflows.
     subprocess.run(
-        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'])
+        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_AccelRecorder.sh'])
 
 
 def exit_control_listener():
