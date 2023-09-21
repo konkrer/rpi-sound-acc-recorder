@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 numpy = "*"
 sparkfun-qwiic-kx13x = "*"
-"rpi.gpio" = "*"
 bluedot = "*"
 
 [dev-packages]
