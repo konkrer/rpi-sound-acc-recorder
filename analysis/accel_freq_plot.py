@@ -10,16 +10,11 @@ ODR = 800
 CLIP_DATA_DURATION = 2
 
 
-# folder = 'pickup_on_engine'
-# fn = 'accel_19_36_39__17_03_23_trig_accel'
 # folder = 'accel_test'
-# fn = 'still_9_7_23'
+# fn = ''
 folder = 'self_wake_events'
-fn = 'accel_22_09_05__15_09_23'
-
-
-def remove_offset(data: np.array) -> np.array:
-    pass
+subfolder = '/accelerometer_data'
+fn = '.02G_200_50_pr_m2/accel_23_10_50__17_09_23'
 
 
 def analyze_fft(data: np.array) -> np.array:
@@ -49,10 +44,6 @@ def main() -> None:
     clip_end_idx = CLIP_DATA_DURATION * ODR
     cropped_data = raw_accel_data[:clip_end_idx]
 
-    # pdb.set_trace()
-
-    # accel_data = remove_offset(raw_accel_data)
-
     x, y, z = analyze_fft(cropped_data)
     data_map = rfftfreq(clip_end_idx, 1 / ODR)
 
@@ -79,7 +70,7 @@ def main() -> None:
     plt.stem(data_map, max_data, markerfmt=" ", basefmt=" ")
     # plt.xlim(0, 100)
 
-    plt.savefig(fname=f'analysis/data/{folder}/{fn}')
+    plt.savefig(fname=f'analysis/data/{folder}{subfolder}/{fn}')
     plt.show()
 
 
