@@ -35,7 +35,7 @@ class Kx13xInitializations:
         c_mode = 0  # default: 0, counter resets
         th_mode = 1  # default: 1, relative
         pr_mode = 1  # default: None or 0 (off)
-        motion_present = 4  # default: 0x05, 5 ODR cycles
+        motion_present = 2  # default: 0x05, 5 ODR cycles
 
         # Write 0x06 to Output Data Control (ODCNTL) to set the Output
         # Data Rate (ODR) of the accelerometer to 50 Hz.

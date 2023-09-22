@@ -20,7 +20,7 @@ bd = BlueDot()
 
 
 def kill_event_recorder():
-    buzz_buzzer(on=False)
+    buzz_buzzer(enable=False)
     beep_buzzer()
     subprocess.run(
         [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])

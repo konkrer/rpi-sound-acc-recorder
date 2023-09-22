@@ -31,13 +31,15 @@ try:
               f'Press {HOT_KEY_KILL.upper()} to Kill.')
         listener.join()
     if PRESSED_HOT_KEY == HOT_KEY_REBOOT:
-        buzz_buzzer(on=False)
+        buzz_buzzer(enable=False)
         beep_buzzer()
-        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/reboot_S_B_L.sh'])
+        subprocess.run(
+            [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/reboot_S_B_L.sh'])
     elif PRESSED_HOT_KEY == HOT_KEY_KILL:
-        buzz_buzzer(on=False)
+        buzz_buzzer(enable=False)
         beep_buzzer()
-        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
+        subprocess.run(
+            [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
 
 
 except (KeyboardInterrupt):
@@ -45,7 +47,5 @@ except (KeyboardInterrupt):
     print('Exiting Reboot Button Listener')
 finally:
     led_change(False, 0)
-    buzz_buzzer(on=False)
+    buzz_buzzer(enable=False)
     sys.exit(0)
-
-

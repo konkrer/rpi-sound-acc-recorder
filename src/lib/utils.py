@@ -6,17 +6,20 @@ import shutil
 import subprocess
 import sys
 import time
+from gpiozero import Buzzer
 
 columns, _ = shutil.get_terminal_size()
 
 SYS_PLATFORM = sys.platform
-IS_RETERMINAL = False
+DEVICE = None
+RPI_BUZZER = None
+
 
 # if reTerminal file paths exist set IS_RETERMINAL variable
 # and make some permission changes for hardware control
 if SYS_PLATFORM == 'linux':
     if os.path.exists('/sys/class/leds/usr_buzzer/brightness'):
-        IS_RETERMINAL = True
+        DEVICE = 'reTerminal'
         subprocess.run(
             ["sudo", "chmod", "777", "/sys/class/leds/usr_buzzer/brightness"])
         subprocess.run(
@@ -25,10 +28,13 @@ if SYS_PLATFORM == 'linux':
             ["sudo", "chmod", "777", "/sys/class/leds/usr_led1/brightness"])
         subprocess.run(
             ["sudo", "chmod", "777", "/sys/class/leds/usr_led2/brightness"])
+    elif os.path.exists('/sys/class/leds/'):
+        DEVICE = 'RPI'
+        RPI_BUZZER = Buzzer(6)
 
 
 def beep_buzzer(twice: bool = False, delay: int = 100,
-                twice_pause_ms: int = 100) -> None:
+                twice_delay: int = 100) -> None:
     """Function to buzz or double buzz the Buzzer when recording on a
     reTerminal RaspberryPi.
 
@@ -38,7 +44,7 @@ def beep_buzzer(twice: bool = False, delay: int = 100,
     """
     ms_convertor = .001
 
-    if IS_RETERMINAL:
+    if DEVICE == 'reTerminal':
         def buzz():
             nonlocal ms_convertor, delay
             with open('/sys/class/leds/usr_buzzer/brightness',
@@ -48,17 +54,30 @@ def beep_buzzer(twice: bool = False, delay: int = 100,
             with open('/sys/class/leds/usr_buzzer/brightness',
                       'w') as f:
                 f.write(str(int(0)))
+
+    elif DEVICE == 'RPI':
+        def buzz():
+            nonlocal ms_convertor, delay
+            RPI_BUZZER.on()
+            time.sleep(ms_convertor * delay)
+            RPI_BUZZER.off()
+    buzz()
+    if twice:
+        time.sleep(twice_delay * ms_convertor)
         buzz()
-        if twice:
-            time.sleep(twice_pause_ms * ms_convertor)
-            buzz()
 
 
-def buzz_buzzer(on: bool = False) -> None:
-    if IS_RETERMINAL:
+def buzz_buzzer(enable: bool = False) -> None:
+    if DEVICE == 'reTerminal':
         with open('/sys/class/leds/usr_buzzer/brightness',
                   'w') as f:
-            f.write(str(int(on)))
+            f.write(str(int(enable)))
+
+    if DEVICE == 'RPI':
+        if enable:
+            RPI_BUZZER.on()
+        else:
+            RPI_BUZZER.off()
 
 
 def led_change(brightness: bool or int = 0, led_num: int = 1, ):
@@ -66,7 +85,7 @@ def led_change(brightness: bool or int = 0, led_num: int = 1, ):
     reTerminal RaspberryPi.
     """
     assert led_num in [0, 1, 2]
-    if IS_RETERMINAL:
+    if DEVICE == 'reTerminal':
         if os.path.exists('/sys/class/leds/usr_led1/brightness'):
             with open(f'/sys/class/leds/usr_led{led_num}/brightness',
                       'w') as f:

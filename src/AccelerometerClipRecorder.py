@@ -25,7 +25,7 @@ import RPi.GPIO as GPIO
 
 # Accelerometer settings
 # output data rate (Hz)
-ODR = 800
+ODR = 400
 ODR_SETTINGS = {
     .781: 0,
     1.563: 1,
@@ -310,7 +310,7 @@ class AccelerometerClipRecorder:
 if __name__ == '__main__':
     try:
         recorder = AccelerometerClipRecorder(
-            wake_up_g_threshold=0.015)
+            wake_up_g_threshold=0.018)
         print(" Sensor Active!! ".center(50, '*'))
         recorder.threshold_recorder()
         print(" Done!! ".center(50, '*'))

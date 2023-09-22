@@ -13,9 +13,9 @@ HOT_KEY_EXIT = 'f2'
 
 def key_press_logic(key):
     if hasattr(key, 'name') and key.name == HOT_KEY_LAUNCH:
-        buzz_buzzer(on=True)
+        buzz_buzzer(enable=True)
         time.sleep(3)
-        buzz_buzzer(on=False)
+        buzz_buzzer(enable=False)
     if hasattr(key, 'name') and key.name == HOT_KEY_EXIT:
         return False
 
