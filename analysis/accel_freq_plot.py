@@ -1,20 +1,17 @@
 from scipy.fft import rfft, rfftfreq
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
-assert pdb
+from os import listdir, makedirs
+from os.path import isfile, join, exists
 
 # plt.style.use('seaborn-v0_8-poster')
 
-ODR = 800
+ODR = 400
 CLIP_DATA_DURATION = 2
 
-
-# folder = 'accel_test'
-# fn = ''
-folder = 'self_wake_events'
-subfolder = '/accelerometer_data'
-fn = '.02G_200_50_pr_m2/accel_23_10_50__17_09_23'
+FOLDER_NAME = 'kizashi'
+BASE_PATH = f'analysis/data/{FOLDER_NAME}'
+SAVE_FOLDER = 'plots'
 
 
 def analyze_fft(data: np.array) -> np.array:
@@ -38,9 +35,9 @@ def get_max_data(fft_data: np.array) -> np.array:
     return out
 
 
-def main() -> None:
+def analyze_file(fname: str) -> None:
     raw_accel_data = np.load(
-        f'analysis/data/{folder}/accelerometer_data/{fn}.npy')
+        f'{BASE_PATH}/accelerometer_data/{fname}')
     clip_end_idx = CLIP_DATA_DURATION * ODR
     cropped_data = raw_accel_data[:clip_end_idx]
 
@@ -70,8 +67,24 @@ def main() -> None:
     plt.stem(data_map, max_data, markerfmt=" ", basefmt=" ")
     # plt.xlim(0, 100)
 
-    plt.savefig(fname=f'analysis/data/{folder}{subfolder}/{fn}')
-    plt.show()
+    plt.savefig(fname=f'{BASE_PATH}/{SAVE_FOLDER}/{fname[:-4]}')
+    # plt.show()
+    plt.close()
+
+
+def main() -> None:
+    save_path = f'{BASE_PATH}/{SAVE_FOLDER}'
+    if not exists(save_path):
+        makedirs(save_path)
+
+    files = [f for f in listdir(
+        f'{BASE_PATH}/accelerometer_data/'
+    ) if isfile(join(f'{BASE_PATH}/accelerometer_data/', f))]
+
+    npy_filenames = [f for f in files if f.endswith('.npy')]
+
+    for f in npy_filenames:
+        analyze_file(f)
 
 
 if __name__ == '__main__':

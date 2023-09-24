@@ -2,7 +2,7 @@
 
 ## Python sound and accelerometer data recording. Threshold controlled recording.
 
-### Used with RaspberryPi based Seeed reTerminal.
+### Used with RaspberryPi.
 
 #### Installation Notes:
 

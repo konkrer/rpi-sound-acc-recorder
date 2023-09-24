@@ -47,7 +47,7 @@ ODR_SETTINGS = {
 
 # Recording settings
 CLIP_DURATION = 2  # seconds
-MAX_CONTINUOUS_CLIP = 1  # mins
+MAX_CLIP_DURATION = 6  # seconds
 # back to sleep threshold
 BTS_THRESHOLD = 0.05
 SAVE_FOLDER = 'accelerometer_data'
@@ -68,7 +68,7 @@ class AccelerometerClipRecorder:
                  wake_up_g_threshold: float or int or None = None,
                  bts_threshold: float or int or None = None,
                  clip_duration: int = CLIP_DURATION,
-                 max_continuous_clip_duration: int = MAX_CONTINUOUS_CLIP):
+                 max_clip_duration: int = MAX_CLIP_DURATION):
         self.save_folder = save_folder
         # Accelerometer initialization
         self.accel = qwiic_kx13x.QwiicKX132()
@@ -79,7 +79,7 @@ class AccelerometerClipRecorder:
         self.wake_up_g_threshold = wake_up_g_threshold
         self.bts_threshold = bts_threshold or BTS_THRESHOLD
         self.clip_duration = clip_duration
-        self.max_continuous_clip = max_continuous_clip_duration
+        self.max_clip_duration = max_clip_duration
         self.odr = odr
         self.read_delay = 1 / self.odr
         self.g_range = g_range
@@ -105,7 +105,8 @@ class AccelerometerClipRecorder:
             # default wake up engine rate @ 50hz. 1/rate
             await asyncio.sleep(.2)
 
-    def record_clip(self, trigger_info: list[dt, str] = None) -> None:
+    def record_clip(self, trigger_info: list[dt, str] = None,
+                    variable_length: bool = False) -> None:
         self.accel.accel_control(False)
         self.accel.clear_interrupt()
         self.accel.clear_buffer()
@@ -114,7 +115,9 @@ class AccelerometerClipRecorder:
         metadata = trigger_info or [dt.now(), '']
 
         # data buffer
-        buffer_frames, num_accel_axes = self.clip_duration * self.odr, 3
+        buffer_frames = self.odr * (
+            self.max_clip_duration if variable_length else self.clip_duration)
+        num_accel_axes = 3
         buffer = np.zeros((buffer_frames, num_accel_axes), dtype=np.float32)
         write_idx = 0
 
@@ -123,13 +126,16 @@ class AccelerometerClipRecorder:
         buzz_buzzer(True)
         while True:
             if GPIO.input(dataReadyPin) == 1:
-                if write_idx == buffer_frames:
-                    break
                 self.accel.get_accel_data()
                 buffer[write_idx][:] = [
                     self.accel.accel.x, self.accel.accel.y, self.accel.accel.z]
                 write_idx += 1
                 self.accel.clear_interrupt()
+
+                if write_idx == buffer_frames or self.bts_check(
+                        write_idx, buffer):
+                    break
+
             # time.sleep(self.read_delay)  # limits achievable ODR
 
         buzz_buzzer(False)
@@ -153,7 +159,7 @@ class AccelerometerClipRecorder:
             if GPIO.input(dataReadyPin) == 1:
                 # return to ODR for recording
                 self.accel.output_data_rate = ODR_SETTINGS[self.odr]
-                self.record_clip()
+                self.record_clip(variable_length=True)
 
                 # set up accelerometer to trigger mode
                 self.accel.clear_buffer()
@@ -177,11 +183,8 @@ class AccelerometerClipRecorder:
             g_range=self.g_range)
 
         # data buffer
-        max_clip_in_seconds = int(self.max_continuous_clip * 60)
-        buffer_frames = max_clip_in_seconds * self.odr
-        num_accel_axes = 3
-        buffer = np.zeros(
-            (buffer_frames, num_accel_axes), dtype=np.float32)
+        buffer_frames, num_accel_axes = self.max_clip_duration * self.odr, 3
+        buffer = np.zeros((buffer_frames, num_accel_axes), dtype=np.float32)
 
         while True:
             msg, ts, stop_frame = None, None, buffer_frames
@@ -222,14 +225,7 @@ class AccelerometerClipRecorder:
                                 msg == MIC_RECORD_STOP_EVENT_MSG):
                             stop_frame = int(ts * self.odr)
                         elif (accel_triggered_rec and
-                              write_idx >= self.clip_duration * self.odr and
-                              write_idx % self.odr == 0 and
-                                self.bts_threshold_trigger(
-                                    # last second of accel. data
-                                    buffer[
-                                        write_idx-self.odr:
-                                        write_idx:
-                                        10])):
+                              self.bts_check(write_idx, buffer)):
                             loop.call_soon_threadsafe(
                                 msg_out_queue.put_nowait,
                                 (ACCEL_RECORD_STOP_EVENT_MSG,
@@ -275,18 +271,47 @@ class AccelerometerClipRecorder:
         np.save(file=fn, arr=buffer, fix_imports=False)
         # print(f'accel file saved to dir: {self.save_folder}')
 
-    def bts_threshold_trigger(self, buffer: np.array) -> bool:
-        """Back to Sleep threshold trigger.
+    def bts_check(self, write_idx: int, buffer: np.array) -> bool:
+        """Called during recording to check if back-to-sleep (bts)
+        condition has occurred.
+
+        Checks if the minimum clip duration has been achieved during recording
+        and if so then analyzes the data at the start of each new second
+        of recording.
+
+        Args:
+            write_idx (int): the next index of the buffer to be written to.
+            buffer (np.array): the data buffer holding accel readings.
+
+        Returns:
+            bool: indicating if back-to-sleep event has occurred
+        """
+        # if longer than base length clip after each second of time
+        if write_idx >= self.clip_duration * self.odr and \
+                write_idx % self.odr == 0:
+            # check last second of accel. data and return result
+            return self.bts_analyze(
+                buffer[write_idx - self.odr: write_idx])
+        return False
+
+    def bts_analyze(self, buffer: np.array) -> bool:
+        """Back-to-sleep threshold analysis.
 
         Look for condition of low accelerometer change for back to sleep
         function.
 
         Returns:
-            bool: if the back to sleep condition is met
+            bool: indicating if the back to sleep condition is met
         """
-        debounce, debounce_limit = 0, 50
-        x_last, y_last, z_last = buffer[0][0], buffer[0][1], buffer[0][2]
+        down_sampling_amt = 10
+        # duration all readings must test below threshold
+        seconds_below_threshold = 0.25
+        buffer = buffer[::down_sampling_amt]
+        debounce_limit = int(
+            self.odr / down_sampling_amt * seconds_below_threshold)
 
+        x_last, y_last, z_last = buffer[0][0], buffer[0][1], buffer[0][2]
+        debounce = 0
         for x, y, z in buffer[1:]:
             if (
                     abs(x - x_last) < self.bts_threshold and
@@ -310,7 +335,7 @@ class AccelerometerClipRecorder:
 if __name__ == '__main__':
     try:
         recorder = AccelerometerClipRecorder(
-            wake_up_g_threshold=0.018)
+            wake_up_g_threshold=0.01)
         print(" Sensor Active!! ".center(50, '*'))
         recorder.threshold_recorder()
         print(" Done!! ".center(50, '*'))
