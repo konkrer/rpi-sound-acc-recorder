@@ -59,13 +59,17 @@ def main():
             kill_event_recorder()
 
 
+def exit_clean():
+    print('\nExiting Start Button Listener\n')
+    led_change(False, 0)
+    led_change(False, 1)
+    led_change(False, 2)
+    sys.exit(0)
+
+
 if __name__ == '__main__':
     try:
         main()
 
     except (KeyboardInterrupt):
-        print('\nExiting Start Button Listener\n')
-        led_change(False, 0)
-        led_change(False, 1)
-        led_change(False, 2)
-        sys.exit(0)
+        exit_clean()

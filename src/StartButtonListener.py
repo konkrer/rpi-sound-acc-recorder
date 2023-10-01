@@ -49,7 +49,9 @@ if __name__ == '__main__':
         beep_buzzer(twice=True)
         # subprocess call allows EventRecorder to run properly on Raspberry Pi
         # from this button listening startup script. Avoids input overflows.
-        subprocess.run([f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'])
+        file_path = '/dev/rpi-sound-acc-recorder/bin/launch_EventRecorder.sh'
+        subprocess.run(
+            [f'{home_dir}{file_path}'])
 
     except (KeyboardInterrupt):
         print('\nExiting Start Button Listener\n')

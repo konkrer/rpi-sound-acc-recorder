@@ -6,13 +6,17 @@ import shutil
 import subprocess
 import sys
 import time
-from gpiozero import Buzzer
+from lib.gpio import GPIO
 
 columns, _ = shutil.get_terminal_size()
 
 SYS_PLATFORM = sys.platform
 DEVICE = None
 RPI_BUZZER = None
+
+# I/O settings
+buzzer_pin = 6
+GPIO.setup(buzzer_pin, GPIO.OUT)
 
 
 # if reTerminal file paths exist set IS_RETERMINAL variable
@@ -30,11 +34,11 @@ if SYS_PLATFORM == 'linux':
             ["sudo", "chmod", "777", "/sys/class/leds/usr_led2/brightness"])
     elif os.path.exists('/sys/class/leds/'):
         DEVICE = 'RPI'
-        RPI_BUZZER = Buzzer(6)
+        # RPI_BUZZER = Buzzer(6)
 
 
 def beep_buzzer(twice: bool = False, delay: int = 100,
-                twice_delay: int = 100) -> None:
+                twice_delay: int = 100, thrice: bool = False) -> None:
     """Function to buzz or double buzz the Buzzer when recording on a
     reTerminal RaspberryPi.
 
@@ -58,11 +62,16 @@ def beep_buzzer(twice: bool = False, delay: int = 100,
     elif DEVICE == 'RPI':
         def buzz():
             nonlocal ms_convertor, delay
-            RPI_BUZZER.on()
+            # RPI_BUZZER.on()
+            GPIO.output(buzzer_pin, True)
             time.sleep(ms_convertor * delay)
-            RPI_BUZZER.off()
+            # RPI_BUZZER.off()
+            GPIO.output(buzzer_pin, False)
     buzz()
-    if twice:
+    if twice or thrice:
+        time.sleep(twice_delay * ms_convertor)
+        buzz()
+    if thrice:
         time.sleep(twice_delay * ms_convertor)
         buzz()
 
@@ -75,9 +84,11 @@ def buzz_buzzer(enable: bool = False) -> None:
 
     if DEVICE == 'RPI':
         if enable:
-            RPI_BUZZER.on()
+            # RPI_BUZZER.on()
+            GPIO.output(buzzer_pin, True)
         else:
-            RPI_BUZZER.off()
+            # RPI_BUZZER.off()
+            GPIO.output(buzzer_pin, False)
 
 
 def led_change(brightness: bool or int = 0, led_num: int = 1, ):

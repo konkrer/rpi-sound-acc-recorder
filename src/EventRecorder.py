@@ -11,6 +11,7 @@ from MicrophoneClipRecorder import MicrophoneClipRecorder
 from lib.utils import led_change
 import asyncio
 import sys
+import signal
 
 try:
     from AccelerometerClipRecorder import AccelerometerClipRecorder
@@ -129,4 +130,5 @@ def main():
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
     main()

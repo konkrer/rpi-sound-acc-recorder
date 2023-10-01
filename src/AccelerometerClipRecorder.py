@@ -8,20 +8,23 @@
       -Save numpy file with metadata in file name
     """
 
-import os
+from pathlib import Path
 import sys
 import shutil
-import time
-import qwiic_kx13x
+from time import sleep
+import lib.qwiic_kx13x as qwiic_kx13x
 import numpy as np
 import asyncio
 from datetime import datetime as dt
-from lib.utils import led_change, buzz_buzzer
+import signal
+
+from lib.gpio import GPIO
+from lib.utils import led_change, buzz_buzzer, beep_buzzer
 from lib.common import (
     TME_STMP_FORMAT, MIC_TRIGGER_NAME, ACCEL_TRIGGER_NAME,
     MIC_RECORD_EVENT_MSG, MIC_RECORD_STOP_EVENT_MSG, ACCEL_RECORD_EVENT_MSG,
     ACCEL_RECORD_STOP_EVENT_MSG)
-import RPi.GPIO as GPIO
+from lib.accel_detect import detect_freq_spike
 
 # Accelerometer settings
 # output data rate (Hz)
@@ -46,15 +49,17 @@ ODR_SETTINGS = {
 }
 
 # Recording settings
-CLIP_DURATION = 2  # seconds
-MAX_CLIP_DURATION = 6  # seconds
+CLIP_DURATION = 4  # seconds
+MAX_CLIP_DURATION = 4  # seconds
 # back to sleep threshold
-BTS_THRESHOLD = 0.05
+BTS_THRESHOLD = 0.07
 SAVE_FOLDER = 'accelerometer_data'
+SAVE_FOLDER_COMMON = '/common'
+SAVE_FOLDER_DETECTION = '/detection'
+SAVE_FOLDER_DETECT_H_A = '/h_a_detect'  # high accuracy
 
 # I/O settings
 dataReadyPin = 22
-GPIO.setmode(GPIO.BCM)
 GPIO.setup(dataReadyPin, GPIO.IN)
 
 columns, _ = shutil.get_terminal_size()
@@ -84,9 +89,13 @@ class AccelerometerClipRecorder:
         self.read_delay = 1 / self.odr
         self.g_range = g_range
 
-    def adp_off(self) -> None:
-        self.accel.initialize('ADP_OFF')
-        self.accel.output_data_rate = ODR_SETTINGS[self.odr]
+        # make directories if necessary
+        Path(f'{self.save_folder}{SAVE_FOLDER_COMMON}').mkdir(
+            parents=True, exist_ok=True)
+        Path(f'{self.save_folder}{SAVE_FOLDER_DETECTION}').mkdir(
+            exist_ok=True)
+        Path(f'{self.save_folder}{SAVE_FOLDER_DETECT_H_A}').mkdir(
+            exist_ok=True)
 
     async def threshold_alert(self):
         self.accel.accel_control(False)
@@ -103,7 +112,7 @@ class AccelerometerClipRecorder:
                 ts = dt.now()
                 return [ts, ACCEL_TRIGGER_NAME]
             # default wake up engine rate @ 50hz. 1/rate
-            await asyncio.sleep(.2)
+            await asyncio.sleep(.02)
 
     def record_clip(self, trigger_info: list[dt, str] = None,
                     variable_length: bool = False) -> None:
@@ -136,13 +145,13 @@ class AccelerometerClipRecorder:
                         write_idx, buffer):
                     break
 
-            # time.sleep(self.read_delay)  # limits achievable ODR
+            # sleep(self.read_delay)  # limits achievable ODR
 
         buzz_buzzer(False)
         led_change()
         print(' > Accelerometer Rec. Stopped < '.center(columns, '-'))
 
-        self.save_data_to_file(buffer, metadata)
+        self.detect_and_save(buffer[:write_idx], metadata)
         return True
 
     def threshold_recorder(self):
@@ -169,7 +178,7 @@ class AccelerometerClipRecorder:
                     g_range=self.g_range)
 
             # default wake up engine rate @ 50hz. 1/rate
-            time.sleep(.02)
+            sleep(.02)
 
     def messaging_threshold_recorder(self, msg_out_queue: asyncio.Queue,
                                      msg_in_queue: asyncio.Queue, loop):
@@ -241,7 +250,7 @@ class AccelerometerClipRecorder:
                             self.accel.accel.z]
                         write_idx += 1
                         self.accel.clear_interrupt()
-                    # time.sleep(self.read_delay)  # limits achievable ODR
+                    # sleep(self.read_delay)  # limits achievable ODR
 
                 # print(' > Accel Rec. Stopped < '.center(columns, '-'))
 
@@ -258,18 +267,27 @@ class AccelerometerClipRecorder:
                     g_range=self.g_range)
 
             # default wake up engine rate @ 50hz. 1/rate
-            time.sleep(.2)
+            sleep(.02)
 
-    def save_data_to_file(self, buffer: np.array, metadata: list[dt, str]
-                          ) -> None:
+    def detect_and_save(self, buffer: np.array, metadata: list[dt, str]):
+        subfolder = SAVE_FOLDER_COMMON
+        if detect_freq_spike(buffer, self.odr):
+            sleep(0.05)
+            if self.max_clip_duration == len(buffer) / self.odr:
+                subfolder = SAVE_FOLDER_DETECT_H_A
+                beep_buzzer(thrice=True, delay=50, twice_delay=50)
+            else:
+                subfolder = SAVE_FOLDER_DETECTION
+                beep_buzzer(twice=True, delay=75, twice_delay=50)
+        self.save_data_to_file(buffer, metadata, subfolder)
+
+    def save_data_to_file(self, buffer: np.array, metadata: list[dt, str],
+                          subfolder: str = '') -> None:
         ts, trigger = metadata
         time_str = ts.strftime(TME_STMP_FORMAT)
         trigger_suffix = f'_trig_{trigger}' if trigger else ''
-        if not os.path.exists(self.save_folder):
-            os.mkdir(self.save_folder)
-        fn = f'{self.save_folder}/accel_{time_str}{trigger_suffix}'
+        fn = f'{self.save_folder}{subfolder}/accel_{time_str}{trigger_suffix}'
         np.save(file=fn, arr=buffer, fix_imports=False)
-        # print(f'accel file saved to dir: {self.save_folder}')
 
     def bts_check(self, write_idx: int, buffer: np.array) -> bool:
         """Called during recording to check if back-to-sleep (bts)
@@ -303,20 +321,20 @@ class AccelerometerClipRecorder:
         Returns:
             bool: indicating if the back to sleep condition is met
         """
-        down_sampling_amt = 10
+        down_sampling_amt = 2
         # duration all readings must test below threshold
-        seconds_below_threshold = 0.25
+        seconds_below_threshold = 0.05
         buffer = buffer[::down_sampling_amt]
-        debounce_limit = int(
+        debounce_limit = round(
             self.odr / down_sampling_amt * seconds_below_threshold)
 
         x_last, y_last, z_last = buffer[0][0], buffer[0][1], buffer[0][2]
         debounce = 0
         for x, y, z in buffer[1:]:
             if (
-                    abs(x - x_last) < self.bts_threshold and
-                    abs(y - y_last) < self.bts_threshold and
-                    abs(z - z_last) < self.bts_threshold
+                    abs(x - x_last) <= self.bts_threshold and
+                    abs(y - y_last) <= self.bts_threshold and
+                    abs(z - z_last) <= self.bts_threshold
             ):
                 debounce += 1
             else:
@@ -328,17 +346,24 @@ class AccelerometerClipRecorder:
 
         return False
 
-    def cleanup(self) -> None:
+    def adp_off(self) -> None:
+        self.accel.initialize('ADP_OFF')
+        self.accel.output_data_rate = ODR_SETTINGS[self.odr]
+
+    @classmethod
+    def cleanup(self, *args) -> None:
         GPIO.cleanup()
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
     try:
         recorder = AccelerometerClipRecorder(
             wake_up_g_threshold=0.01)
         print(" Sensor Active!! ".center(50, '*'))
         recorder.threshold_recorder()
-        print(" Done!! ".center(50, '*'))
+        # recorder.record_clip()
+        # print(" Done!! ".center(50, '*'))
     except (KeyboardInterrupt, SystemExit):
         print("\nExiting!")
         sys.exit(0)
