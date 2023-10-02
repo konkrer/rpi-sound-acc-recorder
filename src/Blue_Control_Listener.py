@@ -12,31 +12,28 @@ import subprocess
 import sys
 from bluedot import BlueDot
 from lib.utils import led_change, beep_buzzer, buzz_buzzer
-# from signal import pause
+import signal
 import pathlib
+
+from lib.gpio import GPIO
 
 home_dir = pathlib.Path.home()
 bd = BlueDot()
 
 
-def kill_event_recorder():
+def kill_recorder():
     buzz_buzzer(enable=False)
     beep_buzzer()
     subprocess.run(
         [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
 
 
-def launch_event_recorder():
+def launch_recorder():
     beep_buzzer(twice=True)
     # subprocess call allows EventRecorder to run properly on Raspberry Pi
     # from this button listening startup script. Avoids input overflows.
     subprocess.run(
         [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_AccelRecorder.sh'])
-
-
-def exit_control_listener():
-    kill_event_recorder()
-    sys.exit(0)
 
 
 def listen_for_press():
@@ -52,24 +49,27 @@ def main():
         if not recorder_on:
             listen_for_press()
             recorder_on = True
-            launch_event_recorder()
+            launch_recorder()
         else:
             listen_for_press()
             recorder_on = False
-            kill_event_recorder()
+            kill_recorder()
 
 
 def exit_clean():
-    print('\nExiting Start Button Listener\n')
+    print('\nExiting Blue_Control_Listener\n')
+    kill_recorder()
     led_change(False, 0)
     led_change(False, 1)
     led_change(False, 2)
-    sys.exit(0)
+    GPIO.cleanup()
 
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, lambda *args: sys.exit(0))
+
     try:
         main()
 
-    except (KeyboardInterrupt):
+    except (KeyboardInterrupt, SystemExit):
         exit_clean()

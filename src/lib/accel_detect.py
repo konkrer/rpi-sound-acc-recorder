@@ -48,7 +48,7 @@ def detect_freq_spike(
     threshold_2 = threshold_2 * clip_length
 
     #  analyze fft
-    if max_data is not None:
+    if max_data is None:
         freq_data = analyze_fft(buffer, odr)
         max_data = get_max_data(np.abs(freq_data))
 

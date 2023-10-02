@@ -365,7 +365,7 @@ if __name__ == '__main__':
         # recorder.record_clip()
         # print(" Done!! ".center(50, '*'))
     except (KeyboardInterrupt, SystemExit):
-        print("\nExiting!")
+        print("\nExiting AccelerometerClipRecorder")
         sys.exit(0)
     finally:
         GPIO.cleanup()
