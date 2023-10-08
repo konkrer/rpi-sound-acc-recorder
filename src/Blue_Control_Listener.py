@@ -20,12 +20,15 @@ from lib.gpio import GPIO
 home_dir = pathlib.Path.home()
 bd = BlueDot()
 
+RECORDER = 'AccelerometerClipRecorder'
+# RECORDER = 'EventRecorder'
+
 
 def kill_recorder():
     buzz_buzzer(enable=False)
     beep_buzzer()
     subprocess.run(
-        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/kill_S_B_L.sh'])
+        ['pkill', '-9', '-f', f'^.*{RECORDER}.py$'])
 
 
 def launch_recorder():
@@ -33,7 +36,7 @@ def launch_recorder():
     # subprocess call allows EventRecorder to run properly on Raspberry Pi
     # from this button listening startup script. Avoids input overflows.
     subprocess.run(
-        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_AccelRecorder.sh'])
+        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_{RECORDER}.sh'])
 
 
 def listen_for_press():

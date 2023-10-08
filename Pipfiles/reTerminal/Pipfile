@@ -5,11 +5,12 @@ name = "pypi"
 
 [packages]
 numpy = "*"
-soundfile = "*"
-sounddevice = "*"
-sparkfun-qwiic-kx13x = "*"
-bluedot = "*"
 scipy = "*"
+sounddevice = "*"
+soundfile = "*"
+sparkfun-qwiic-kx13x = "*"
+pynput = "*"
+bluedot = "*"
 
 [dev-packages]
 

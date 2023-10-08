@@ -24,6 +24,6 @@
 - `cp "Pipfiles/RPI_Accel_Only/Pipfile" ./`
 - Use `pipenv --python=/usr/bin/python --site-packages` to create venv with system site-packages.
 - `pipenv install`
-- (If needed) `pipenv run pip install --no-binary numpy numpy` to compile from source to allow use of latest version.
+- (If needed) `pipenv run pip install --no-binary numpy numpy===1.26.0` to compile from source to allow use of latest version.
 - enable i2c. https://learn.sparkfun.com/tutorials/raspberry-pi-spi-and-i2c-tutorial
 - `sudo raspi-config` Under System, click "Boot / Auto-Login" and then set the console to automatically log in your user. (allow .profile to autostart scripts after boot)

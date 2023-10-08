@@ -368,4 +368,6 @@ if __name__ == '__main__':
         print("\nExiting AccelerometerClipRecorder")
         sys.exit(0)
     finally:
+        led_change(False, 1)
+        led_change(False, 2)
         GPIO.cleanup()

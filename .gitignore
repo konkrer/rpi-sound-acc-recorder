@@ -1,8 +1,9 @@
 Pipfile
 Pipfile.lock
 !Pipfiles/RPI/Pipfile*
-!Pipfiles/PC/Pipfile*
+!Pipfiles/reTerminal/Pipfile*
 !Pipfiles/RPI_Accel_Only/Pipfile*
+!Pipfiles/PC/Pipfile*
 
 sd examples/
 microphone_data/
