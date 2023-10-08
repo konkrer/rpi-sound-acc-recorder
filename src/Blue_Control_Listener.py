@@ -17,11 +17,22 @@ import pathlib
 
 from lib.gpio import GPIO
 
-home_dir = pathlib.Path.home()
-bd = BlueDot()
 
 RECORDER = 'AccelerometerClipRecorder'
 # RECORDER = 'EventRecorder'
+
+HOME_DIR = str(pathlib.Path.home())
+PATH_LAUNCHER = f'/dev/rpi-sound-acc-recorder/bin/launch_{RECORDER}.sh'
+FULL_PATH_LAUNCHER = f'{HOME_DIR}{PATH_LAUNCHER}'
+
+BD = BlueDot()
+
+
+def launch_recorder():
+    beep_buzzer(twice=True)
+    # subprocess call allows Recorder to run properly on Raspberry Pi
+    # from this button listening startup script. Avoids input overflows.
+    subprocess.run([FULL_PATH_LAUNCHER])
 
 
 def kill_recorder():
@@ -31,19 +42,11 @@ def kill_recorder():
         ['pkill', '-9', '-f', f'^.*{RECORDER}.py$'])
 
 
-def launch_recorder():
-    beep_buzzer(twice=True)
-    # subprocess call allows EventRecorder to run properly on Raspberry Pi
-    # from this button listening startup script. Avoids input overflows.
-    subprocess.run(
-        [f'{home_dir}/dev/rpi-sound-acc-recorder/bin/launch_{RECORDER}.sh'])
-
-
 def listen_for_press():
     led_change(True, 0)
     print('\nListening for BlueDot button press.\n' +
           'Press blue dot to Start.')
-    bd.wait_for_press()
+    BD.wait_for_press()
 
 
 def main():

@@ -16,6 +16,7 @@ RPI_BUZZER = None
 
 # I/O settings
 buzzer_pin = 6
+GPIO.setwarnings(False)
 GPIO.setup(buzzer_pin, GPIO.OUT)
 
 
