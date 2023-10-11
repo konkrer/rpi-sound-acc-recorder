@@ -16,9 +16,6 @@ RPI_BUZZER = None
 
 # I/O settings
 buzzer_pin = 6
-GPIO.setwarnings(False)
-GPIO.setup(buzzer_pin, GPIO.OUT)
-
 
 # if reTerminal file paths exist set IS_RETERMINAL variable
 # and make some permission changes for hardware control
@@ -35,7 +32,8 @@ if SYS_PLATFORM == 'linux':
             ["sudo", "chmod", "777", "/sys/class/leds/usr_led2/brightness"])
     elif os.path.exists('/sys/class/leds/'):
         DEVICE = 'RPI'
-        # RPI_BUZZER = Buzzer(6)
+        GPIO.setwarnings(False)
+        GPIO.setup(buzzer_pin, GPIO.OUT)
 
 
 def beep_buzzer(twice: bool = False, delay: int = 100,

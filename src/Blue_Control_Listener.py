@@ -11,7 +11,7 @@
 import subprocess
 import sys
 from bluedot import BlueDot
-from lib.utils import led_change, beep_buzzer, buzz_buzzer
+from lib.utils import led_change, beep_buzzer, buzz_buzzer, DEVICE
 import signal
 import pathlib
 
@@ -68,7 +68,8 @@ def exit_clean():
     led_change(False, 0)
     led_change(False, 1)
     led_change(False, 2)
-    GPIO.cleanup()
+    if DEVICE == 'RPI':
+        GPIO.cleanup()
 
 
 if __name__ == '__main__':
